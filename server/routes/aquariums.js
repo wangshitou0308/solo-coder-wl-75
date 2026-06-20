@@ -5,7 +5,7 @@ const db = require('../database');
 router.get('/', (req, res) => {
   const aquariums = db.prepare(`
     SELECT a.*,
-      (SELECT COUNT(*) FROM creatures c WHERE c.aquarium_id = a.id) as creature_count,
+      (SELECT COALESCE(SUM(quantity), 0) FROM creatures c WHERE c.aquarium_id = a.id) as creature_count,
       (SELECT COUNT(*) FROM water_parameters wp WHERE wp.aquarium_id = a.id) as param_count,
       (SELECT record_date FROM water_parameters wp WHERE wp.aquarium_id = a.id ORDER BY record_date DESC LIMIT 1) as last_param_date
     FROM aquariums a

@@ -61,7 +61,14 @@ export default function Diseases() {
 
   const handleEdit = (d: Disease) => {
     setEditingDisease(d);
-    setFormData(d);
+    const formDataCopy: any = { ...d };
+    if (formDataCopy.end_date && !formDataCopy.result) {
+      formDataCopy.result = '治愈';
+    }
+    if (!formDataCopy.end_date && formDataCopy.result) {
+      formDataCopy.end_date = new Date().toISOString().split('T')[0];
+    }
+    setFormData(formDataCopy);
     setModalOpen(true);
   };
 
@@ -372,7 +379,18 @@ export default function Diseases() {
               <select
                 className="input"
                 value={formData.result || ''}
-                onChange={e => setFormData({ ...formData, result: e.target.value || null })}
+                onChange={e => {
+                  const result = e.target.value || null;
+                  if (!result) {
+                    setFormData({ ...formData, result: null, end_date: null });
+                  } else {
+                    setFormData({
+                      ...formData,
+                      result,
+                      end_date: formData.end_date || new Date().toISOString().split('T')[0],
+                    });
+                  }
+                }}
               >
                 <option value="">未结束</option>
                 <option value="治愈">治愈</option>

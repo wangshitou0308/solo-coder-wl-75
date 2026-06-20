@@ -51,6 +51,34 @@ export default function Dashboard() {
     return params?.warnings && params.warnings.length > 0;
   };
 
+  const combinedMonthlyData = (() => {
+    const waterChanges = monthlyStats?.waterChanges || [];
+    const paramTests = monthlyStats?.paramTests || [];
+    const monthMap: { [key: string]: { month: string; waterChangeCount: number; paramTestCount: number } } = {};
+
+    waterChanges.forEach(wc => {
+      monthMap[wc.month] = {
+        month: wc.month,
+        waterChangeCount: wc.count,
+        paramTestCount: 0,
+      };
+    });
+
+    paramTests.forEach(pt => {
+      if (monthMap[pt.month]) {
+        monthMap[pt.month].paramTestCount = pt.count;
+      } else {
+        monthMap[pt.month] = {
+          month: pt.month,
+          waterChangeCount: 0,
+          paramTestCount: pt.count,
+        };
+      }
+    });
+
+    return Object.values(monthMap).sort((a, b) => a.month.localeCompare(b.month));
+  })();
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -159,14 +187,14 @@ export default function Dashboard() {
           <h3 className="text-lg font-semibold mb-4">月度换水 & 检测趋势</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={monthlyStats?.waterChanges || []}>
+              <BarChart data={combinedMonthlyData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" tick={{ fontSize: 12 }} />
                 <YAxis tick={{ fontSize: 12 }} />
                 <Tooltip />
                 <Legend />
-                <Bar dataKey="count" name="换水次数" fill="#3b82f6" />
-                <Bar dataKey="total_volume" name="换水量(L)" fill="#06b6d4" />
+                <Bar dataKey="waterChangeCount" name="换水次数" fill="#3b82f6" />
+                <Bar dataKey="paramTestCount" name="检测次数" fill="#10b981" />
               </BarChart>
             </ResponsiveContainer>
           </div>

@@ -20,6 +20,8 @@ const feedingRoutes = require('./routes/feedings');
 const diseaseRoutes = require('./routes/diseases');
 const maintenanceRoutes = require('./routes/maintenances');
 const statsRoutes = require('./routes/stats');
+const careTaskRoutes = require('./routes/careTasks');
+const inventoryRoutes = require('./routes/inventory');
 
 app.use('/api/aquariums', aquariumRoutes);
 app.use('/api/water-params', waterParamRoutes);
@@ -29,6 +31,8 @@ app.use('/api/feedings', feedingRoutes);
 app.use('/api/diseases', diseaseRoutes);
 app.use('/api/maintenances', maintenanceRoutes);
 app.use('/api/stats', statsRoutes);
+app.use('/api/care-tasks', careTaskRoutes);
+app.use('/api/inventory', inventoryRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Aquarium Management API is running' });

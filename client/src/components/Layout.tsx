@@ -9,10 +9,12 @@ const navItems = [
   { to: '/', label: '数据看板', icon: '📊' },
   { to: '/aquariums', label: '鱼缸档案', icon: '🐠' },
   { to: '/water-quality', label: '水质监测', icon: '💧' },
+  { to: '/care-tasks', label: '养护任务', icon: '📋' },
   { to: '/creatures', label: '生物管理', icon: '🐟' },
   { to: '/feeding', label: '喂食记录', icon: '🍽️' },
   { to: '/diseases', label: '鱼病医疗', icon: '💊' },
   { to: '/maintenance', label: '设备维护', icon: '🔧' },
+  { to: '/inventory', label: '库存管理', icon: '📦' },
 ];
 
 export default function Layout({ children }: LayoutProps) {

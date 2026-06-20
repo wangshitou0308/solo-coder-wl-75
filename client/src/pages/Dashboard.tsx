@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { statsApi } from '../api';
-import type { OverviewStats, AquariumStatus, MonthlyStats } from '../types';
+import type { OverviewStats, AquariumStatus, MonthlyStats, WaterHealthScore } from '../types';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
 
 export default function Dashboard() {
   const [overview, setOverview] = useState<OverviewStats | null>(null);
   const [aquariumStatus, setAquariumStatus] = useState<AquariumStatus[]>([]);
   const [monthlyStats, setMonthlyStats] = useState<MonthlyStats | null>(null);
+  const [healthRanking, setHealthRanking] = useState<WaterHealthScore[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -16,14 +17,16 @@ export default function Dashboard() {
 
   const loadData = async () => {
     try {
-      const [ov, aq, mo] = await Promise.all([
+      const [ov, aq, mo, hr] = await Promise.all([
         statsApi.getOverview(),
         statsApi.getAquariumStatus(),
         statsApi.getMonthlyStats(6),
+        statsApi.getHealthRanking().catch(() => []),
       ]);
       setOverview(ov);
       setAquariumStatus(aq);
       setMonthlyStats(mo);
+      setHealthRanking(hr);
     } catch (error) {
       console.error('Failed to load dashboard data:', error);
     } finally {
@@ -147,9 +150,27 @@ export default function Dashboard() {
                   <h4 className="font-medium text-gray-900">{aq.name}</h4>
                   <p className="text-sm text-gray-500">{getTypeLabel(aq.type)}</p>
                 </div>
-                {aq.latestParams && hasWarning(aq.latestParams) && (
-                  <span className="badge-warning">⚠️ 预警</span>
-                )}
+                <div className="flex items-center gap-1">
+                  {aq.healthScore && (
+                    <span className={`text-sm font-bold px-2 py-0.5 rounded-full ${
+                      aq.healthScore.level === 'excellent' ? 'bg-emerald-100 text-emerald-700' :
+                      aq.healthScore.level === 'stable' ? 'bg-sky-100 text-sky-700' :
+                      aq.healthScore.level === 'needs_attention' ? 'bg-amber-100 text-amber-700' :
+                      'bg-red-100 text-red-700'
+                    }`}>
+                      {aq.healthScore.score}分
+                    </span>
+                  )}
+                  {aq.healthScore && aq.healthScore.level !== 'excellent' && (
+                    <span className={`badge text-xs ${
+                      aq.healthScore.level === 'stable' ? 'bg-sky-100 text-sky-800' :
+                      aq.healthScore.level === 'needs_attention' ? 'badge-warning' :
+                      'badge-danger'
+                    }`}>
+                      {aq.healthScore.levelLabel}
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
                 <div>
@@ -171,12 +192,118 @@ export default function Dashboard() {
                   <span className="font-medium">{aq.lastWaterChange?.change_date || '-'}</span>
                 </div>
               </div>
+              {aq.healthScore && aq.healthScore.causes.length > 0 && (
+                <div className="mt-2 pt-2 border-t border-gray-100">
+                  <div className="flex flex-wrap gap-1">
+                    {aq.healthScore.causes.slice(0, 2).map((c, i) => (
+                      <span key={i} className="text-xs text-red-600 bg-red-50 px-1.5 py-0.5 rounded">{c.substring(0, 20)}...</span>
+                    ))}
+                    {aq.healthScore.causes.length > 2 && (
+                      <span className="text-xs text-gray-400">+{aq.healthScore.causes.length - 2}项</span>
+                    )}
+                  </div>
+                </div>
+              )}
             </Link>
           ))}
 
           {aquariumStatus.length === 0 && (
             <div className="col-span-full text-center py-8 text-gray-500">
               暂无鱼缸，点击"鱼缸档案"添加您的第一个鱼缸
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="card p-6">
+          <h3 className="text-lg font-semibold mb-4">鱼缸健康排行榜</h3>
+          {healthRanking.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">暂无数据</div>
+          ) : (
+            <div className="space-y-3">
+              {healthRanking.map((aq, index) => (
+                <Link
+                  key={aq.aquariumId || index}
+                  to={`/aquariums/${aq.aquariumId}`}
+                  className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className={`text-lg font-bold w-8 text-center ${
+                      index === 0 ? 'text-yellow-500' :
+                      index === 1 ? 'text-gray-400' :
+                      index === 2 ? 'text-amber-600' :
+                      'text-gray-300'
+                    }`}>
+                      {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : index + 1}
+                    </span>
+                    <div>
+                      <p className="font-medium text-gray-900">{aq.aquariumName}</p>
+                      <p className="text-xs text-gray-500">{aq.levelLabel}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-24 bg-gray-200 rounded-full h-2">
+                      <div
+                        className={`h-2 rounded-full ${
+                          aq.level === 'excellent' ? 'bg-emerald-500' :
+                          aq.level === 'stable' ? 'bg-sky-500' :
+                          aq.level === 'needs_attention' ? 'bg-amber-500' :
+                          'bg-red-500'
+                        }`}
+                        style={{ width: `${aq.score}%` }}
+                      />
+                    </div>
+                    <span className={`text-sm font-bold w-10 text-right ${
+                      aq.level === 'excellent' ? 'text-emerald-600' :
+                      aq.level === 'stable' ? 'text-sky-600' :
+                      aq.level === 'needs_attention' ? 'text-amber-600' :
+                      'text-red-600'
+                    }`}>{aq.score}</span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="card p-6">
+          <h3 className="text-lg font-semibold mb-4">水质风险分析</h3>
+          {healthRanking.filter(aq => aq.level === 'needs_attention' || aq.level === 'high_risk').length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-4xl mb-3">✅</p>
+              <p className="text-gray-500">所有鱼缸水质状况良好</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {healthRanking.filter(aq => aq.level === 'needs_attention' || aq.level === 'high_risk').map((aq, i) => (
+                <div key={i} className={`rounded-lg p-4 ${
+                  aq.level === 'high_risk' ? 'bg-red-50 border border-red-200' : 'bg-amber-50 border border-amber-200'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium">{aq.aquariumName}</h4>
+                    <span className={`badge text-xs ${
+                      aq.level === 'high_risk' ? 'badge-danger' : 'badge-warning'
+                    }`}>{aq.levelLabel} ({aq.score}分)</span>
+                  </div>
+                  {aq.causes.length > 0 && (
+                    <div className="mt-2">
+                      <p className="text-xs font-medium text-gray-600 mb-1">风险原因:</p>
+                      <ul className="text-xs space-y-0.5">
+                        {aq.causes.slice(0, 3).map((c, j) => <li key={j} className="text-gray-600">• {c}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                  {aq.suggestions.length > 0 && (
+                    <div className="mt-2">
+                      <p className="text-xs font-medium text-gray-600 mb-1">建议操作:</p>
+                      <ul className="text-xs space-y-0.5">
+                        {aq.suggestions.slice(0, 2).map((s, j) => <li key={j} className="text-gray-600">→ {s}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </div>

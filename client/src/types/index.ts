@@ -143,12 +143,88 @@ export interface AquariumStatus {
   latestParams: WaterParameter | null;
   creatureCount: number;
   lastWaterChange: WaterChange | null;
+  healthScore?: WaterHealthScore;
 }
 
 export interface MonthlyStats {
   waterChanges: { month: string; count: number; total_volume: number }[];
   paramTests: { month: string; count: number }[];
   diseases: { month: string; count: number }[];
+}
+
+export interface WaterHealthScore {
+  score: number;
+  level: 'excellent' | 'stable' | 'needs_attention' | 'high_risk';
+  levelLabel: string;
+  isDataExpired: boolean;
+  daysSinceLastTest?: number;
+  warnings: HealthWarning[];
+  causes: string[];
+  suggestions: string[];
+  lastTestDate?: string;
+  aquariumId?: number;
+  aquariumName?: string;
+  aquariumType?: string;
+}
+
+export interface HealthWarning {
+  parameter: string;
+  value: number;
+  min: number;
+  max: number;
+  unit: string;
+  status: 'too_low' | 'too_high';
+  deviation: number;
+  severe: boolean;
+}
+
+export interface CareTask {
+  id: number;
+  aquarium_id: number;
+  task_type: string;
+  cycle_days: number;
+  next_due_date: string;
+  status: 'pending' | 'completed' | 'overdue' | 'skipped';
+  completed_date?: string | null;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+  aquarium_name?: string;
+  aquarium_type?: string;
+}
+
+export interface TodayTasks {
+  overdue: CareTask[];
+  dueToday: CareTask[];
+  all: CareTask[];
+}
+
+export interface InventoryItem {
+  id: number;
+  aquarium_id?: number | null;
+  name: string;
+  category: string;
+  current_quantity: number;
+  unit: string;
+  low_stock_threshold?: number | null;
+  estimated_daily_usage?: number | null;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+  aquarium_name?: string;
+  estimated_days_remaining?: number | null;
+  is_low_stock?: boolean;
+}
+
+export interface InventoryPurchase {
+  id: number;
+  inventory_item_id: number;
+  purchase_date: string;
+  quantity: number;
+  unit_price?: number | null;
+  supplier?: string | null;
+  notes?: string | null;
+  created_at: string;
 }
 
 export const AquariumTypes = [
@@ -184,5 +260,24 @@ export const MaintenanceTypes = [
   { value: 'pump_maintenance', label: '水泵维护' },
   { value: 'substrate_clean', label: '底床清洁' },
   { value: 'equipment_check', label: '设备检查' },
+  { value: 'other', label: '其他' },
+];
+
+export const CareTaskTypes = [
+  { value: 'water_change', label: '换水', icon: '💧', recordType: 'water_change' },
+  { value: 'water_test', label: '水质检测', icon: '🧪', recordType: 'water_parameter' },
+  { value: 'filter_clean', label: '清洗过滤棉', icon: '🔧', recordType: 'maintenance' },
+  { value: 'co2_check', label: 'CO₂检查', icon: '💨', recordType: 'maintenance' },
+  { value: 'feeding', label: '喂食', icon: '🍽️', recordType: 'feeding' },
+];
+
+export const InventoryCategories = [
+  { value: 'fish_food', label: '鱼粮' },
+  { value: 'water_reagent', label: '水质试剂' },
+  { value: 'filter_media', label: '滤材' },
+  { value: 'medicine', label: '药品' },
+  { value: 'sea_salt', label: '海盐' },
+  { value: 'fertilizer', label: '肥料' },
+  { value: 'co2_supply', label: 'CO₂' },
   { value: 'other', label: '其他' },
 ];

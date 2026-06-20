@@ -1,7 +1,8 @@
 import axios from 'axios';
 import type {
   Aquarium, WaterParameter, WaterChange, Creature, CreatureRecord,
-  Feeding, Disease, Maintenance, OverviewStats, AquariumStatus, MonthlyStats
+  Feeding, Disease, Maintenance, OverviewStats, AquariumStatus, MonthlyStats,
+  CareTask, TodayTasks, InventoryItem, InventoryPurchase, WaterHealthScore
 } from '../types';
 
 const api = axios.create({
@@ -108,6 +109,47 @@ export const statsApi = {
   getCreatureTrends: (aquariumId?: number, months = 6) =>
     api.get<{ month: string; added: number; lost: number }[]>(
       '/stats/creature-trends', { params: { aquariumId, months } }).then(r => r.data),
+  getHealthScore: (aquariumId: number) =>
+    api.get<WaterHealthScore>(`/stats/health-score/${aquariumId}`).then(r => r.data),
+  getHealthRanking: () =>
+    api.get<WaterHealthScore[]>('/stats/health-ranking').then(r => r.data),
+};
+
+export const careTaskApi = {
+  getToday: () => api.get<TodayTasks>('/care-tasks/today').then(r => r.data),
+  getByAquarium: (aquariumId: number) =>
+    api.get<CareTask[]>(`/care-tasks/${aquariumId}`).then(r => r.data),
+  create: (aquariumId: number, data: Partial<CareTask>) =>
+    api.post<CareTask>(`/care-tasks/${aquariumId}`, data).then(r => r.data),
+  update: (id: number, data: Partial<CareTask>) =>
+    api.put<CareTask>(`/care-tasks/${id}`, data).then(r => r.data),
+  complete: (id: number, data?: Record<string, any>) =>
+    api.put<CareTask>(`/care-tasks/${id}/complete`, data || {}).then(r => r.data),
+  skip: (id: number) =>
+    api.put<CareTask>(`/care-tasks/${id}/skip`).then(r => r.data),
+  delete: (id: number) =>
+    api.delete(`/care-tasks/${id}`).then(r => r.data),
+};
+
+export const inventoryApi = {
+  getAll: (params?: { aquarium_id?: number; category?: string; low_stock_only?: boolean }) =>
+    api.get<InventoryItem[]>('/inventory', { params }).then(r => r.data),
+  getAlerts: () => api.get<InventoryItem[]>('/inventory/alerts').then(r => r.data),
+  get: (id: number) => api.get<InventoryItem>(`/inventory/${id}`).then(r => r.data),
+  create: (data: Partial<InventoryItem>) =>
+    api.post<InventoryItem>('/inventory', data).then(r => r.data),
+  update: (id: number, data: Partial<InventoryItem>) =>
+    api.put<InventoryItem>(`/inventory/${id}`, data).then(r => r.data),
+  consume: (id: number, quantity: number) =>
+    api.put<InventoryItem>(`/inventory/${id}/consume`, { quantity }).then(r => r.data),
+  delete: (id: number) =>
+    api.delete(`/inventory/${id}`).then(r => r.data),
+  getPurchases: (itemId: number) =>
+    api.get<InventoryPurchase[]>(`/inventory/${itemId}/purchases`).then(r => r.data),
+  addPurchase: (itemId: number, data: Partial<InventoryPurchase>) =>
+    api.post<InventoryPurchase>(`/inventory/${itemId}/purchases`, data).then(r => r.data),
+  deletePurchase: (purchaseId: number) =>
+    api.delete(`/inventory/purchases/${purchaseId}`).then(r => r.data),
 };
 
 export default api;

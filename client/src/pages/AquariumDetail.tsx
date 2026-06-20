@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { aquariumApi, waterParamApi, waterChangeApi, creatureApi } from '../api';
-import type { Aquarium, WaterParameter, WaterChange, Creature } from '../types';
+import { aquariumApi, waterParamApi, waterChangeApi, creatureApi, careTaskApi, statsApi } from '../api';
+import type { Aquarium, WaterParameter, WaterChange, Creature, CareTask, WaterHealthScore } from '../types';
+import { CareTaskTypes } from '../types';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import Modal from '../components/Modal';
 
 export default function AquariumDetail() {
   const { id } = useParams<{ id: string }>();
@@ -11,9 +13,16 @@ export default function AquariumDetail() {
   const [paramHistory, setParamHistory] = useState<WaterParameter[]>([]);
   const [waterChanges, setWaterChanges] = useState<WaterChange[]>([]);
   const [creatures, setCreatures] = useState<Creature[]>([]);
-  const [activeTab, setActiveTab] = useState<'overview' | 'params' | 'creatures' | 'water-changes'>('overview');
+  const [careTasks, setCareTasks] = useState<CareTask[]>([]);
+  const [healthScore, setHealthScore] = useState<WaterHealthScore | null>(null);
+  const [activeTab, setActiveTab] = useState<'overview' | 'params' | 'creatures' | 'water-changes' | 'care-plans'>('overview');
   const [loading, setLoading] = useState(true);
   const [chartParam, setChartParam] = useState('temperature');
+  const [taskModalOpen, setTaskModalOpen] = useState(false);
+  const [taskForm, setTaskForm] = useState<Partial<CareTask>>({});
+  const [completeModalOpen, setCompleteModalOpen] = useState(false);
+  const [activeTask, setActiveTask] = useState<CareTask | null>(null);
+  const [completeData, setCompleteData] = useState<Record<string, any>>({});
 
   const aquariumId = parseInt(id || '0');
 
@@ -25,18 +34,22 @@ export default function AquariumDetail() {
 
   const loadData = async () => {
     try {
-      const [aq, latest, history, wc, cr] = await Promise.all([
+      const [aq, latest, history, wc, cr, tasks, hs] = await Promise.all([
         aquariumApi.get(aquariumId),
         waterParamApi.getLatest(aquariumId),
         waterParamApi.getAll(aquariumId, 20),
         waterChangeApi.getAll(aquariumId),
         creatureApi.getAll(aquariumId),
+        careTaskApi.getByAquarium(aquariumId),
+        statsApi.getHealthScore(aquariumId).catch(() => null),
       ]);
       setAquarium(aq);
       setLatestParams(latest);
       setParamHistory(history);
       setWaterChanges(wc);
       setCreatures(cr);
+      setCareTasks(tasks);
+      setHealthScore(hs);
     } catch (error) {
       console.error('Failed to load aquarium detail:', error);
     } finally {
@@ -125,6 +138,7 @@ export default function AquariumDetail() {
               { key: 'params', label: '水质参数' },
               { key: 'creatures', label: '生物列表' },
               { key: 'water-changes', label: '换水记录' },
+              { key: 'care-plans', label: '养护计划' },
             ].map(tab => (
               <button
                 key={tab.key}
@@ -144,6 +158,64 @@ export default function AquariumDetail() {
         <div className="p-6">
           {activeTab === 'overview' && (
             <div className="space-y-6">
+              {healthScore && (
+                <div className={`rounded-lg p-4 ${
+                  healthScore.level === 'excellent' ? 'bg-emerald-50 border border-emerald-200' :
+                  healthScore.level === 'stable' ? 'bg-sky-50 border border-sky-200' :
+                  healthScore.level === 'needs_attention' ? 'bg-amber-50 border border-amber-200' :
+                  'bg-red-50 border border-red-200'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-medium">水质健康评分</h4>
+                      <div className="flex items-center gap-3 mt-1">
+                        <span className={`text-3xl font-bold ${
+                          healthScore.level === 'excellent' ? 'text-emerald-600' :
+                          healthScore.level === 'stable' ? 'text-sky-600' :
+                          healthScore.level === 'needs_attention' ? 'text-amber-600' :
+                          'text-red-600'
+                        }`}>{healthScore.score}</span>
+                        <span className={`badge ${
+                          healthScore.level === 'excellent' ? 'badge-success' :
+                          healthScore.level === 'stable' ? 'bg-sky-100 text-sky-800' :
+                          healthScore.level === 'needs_attention' ? 'badge-warning' :
+                          'badge-danger'
+                        }`}>{healthScore.levelLabel}</span>
+                        {healthScore.isDataExpired && (
+                          <span className="badge-danger">数据过期</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-right text-sm">
+                      {healthScore.lastTestDate && (
+                        <p className="text-gray-500">最近检测: {healthScore.lastTestDate}</p>
+                      )}
+                      {healthScore.daysSinceLastTest !== undefined && (
+                        <p className={healthScore.isDataExpired ? 'text-red-600' : 'text-gray-400'}>
+                          {healthScore.daysSinceLastTest}天前
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  {healthScore.causes.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-current/10">
+                      <p className="text-sm font-medium mb-1">风险原因:</p>
+                      <ul className="text-sm space-y-0.5">
+                        {healthScore.causes.map((c, i) => <li key={i}>• {c}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                  {healthScore.suggestions.length > 0 && (
+                    <div className="mt-2">
+                      <p className="text-sm font-medium mb-1">操作建议:</p>
+                      <ul className="text-sm space-y-0.5">
+                        {healthScore.suggestions.map((s, i) => <li key={i}>→ {s}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <StatCard
                   label="最新温度"
@@ -315,8 +387,248 @@ export default function AquariumDetail() {
               </table>
             </div>
           )}
+
+          {activeTab === 'care-plans' && (
+            <div className="space-y-4">
+              <div className="flex justify-end">
+                <button className="btn-primary" onClick={() => {
+                  setTaskForm({
+                    task_type: 'water_change',
+                    cycle_days: 7,
+                    next_due_date: new Date().toISOString().split('T')[0],
+                  });
+                  setTaskModalOpen(true);
+                }}>
+                  + 新建养护计划
+                </button>
+              </div>
+
+              {careTasks.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <p>暂无养护计划</p>
+                  <p className="text-sm mt-1">为该鱼缸添加周期性养护任务</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {careTasks.map(task => {
+                    const today = new Date().toISOString().split('T')[0];
+                    const daysUntil = Math.ceil((new Date(task.next_due_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                    const taskType = CareTaskTypes.find(t => t.value === task.task_type);
+                    return (
+                      <div key={task.id} className={`border rounded-lg p-4 ${
+                        task.next_due_date < today && task.status === 'pending' ? 'border-red-300 bg-red-50' :
+                        task.next_due_date === today && task.status === 'pending' ? 'border-amber-300 bg-amber-50' :
+                        'hover:shadow-sm'
+                      }`}>
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xl">{taskType?.icon || '📋'}</span>
+                            <div>
+                              <h4 className="font-medium">{taskType?.label || task.task_type}</h4>
+                              <p className="text-xs text-gray-500">每{task.cycle_days}天</p>
+                            </div>
+                          </div>
+                          {task.next_due_date < today && task.status === 'pending' ? (
+                            <span className="badge-danger text-xs">已逾期</span>
+                          ) : task.next_due_date === today && task.status === 'pending' ? (
+                            <span className="badge-warning text-xs">今日</span>
+                          ) : (
+                            <span className="badge-info text-xs">待完成</span>
+                          )}
+                        </div>
+                        <div className="mt-2 text-sm text-gray-600">
+                          <p>下次: {task.next_due_date}</p>
+                          {daysUntil < 0 && <p className="text-red-600 text-xs">逾期{Math.abs(daysUntil)}天</p>}
+                          {daysUntil >= 0 && daysUntil <= 3 && <p className="text-amber-600 text-xs">{daysUntil}天后</p>}
+                        </div>
+                        {task.notes && <p className="mt-1 text-xs text-gray-500 truncate">{task.notes}</p>}
+                        <div className="mt-2 flex gap-2">
+                          <button
+                            onClick={async () => {
+                              setActiveTask(task);
+                              setCompleteData({});
+                              setCompleteModalOpen(true);
+                            }}
+                            className="text-xs px-3 py-1 bg-emerald-100 text-emerald-700 rounded-md hover:bg-emerald-200"
+                          >
+                            完成
+                          </button>
+                          <button
+                            onClick={async () => {
+                              await careTaskApi.skip(task.id);
+                              loadData();
+                            }}
+                            className="text-xs px-3 py-1 bg-gray-100 text-gray-600 rounded-md hover:bg-gray-200"
+                          >
+                            跳过
+                          </button>
+                          <button
+                            onClick={async () => {
+                              if (!confirm('确定删除？')) return;
+                              await careTaskApi.delete(task.id);
+                              loadData();
+                            }}
+                            className="text-xs px-2 py-1 text-red-500 hover:text-red-700"
+                          >
+                            删除
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
+
+      <Modal isOpen={taskModalOpen} onClose={() => setTaskModalOpen(false)} title="新建养护计划">
+        <form onSubmit={async (e) => {
+          e.preventDefault();
+          try {
+            await careTaskApi.create(aquariumId, taskForm);
+            setTaskModalOpen(false);
+            loadData();
+          } catch (error) {
+            console.error('Failed to create task:', error);
+            alert('创建失败');
+          }
+        }} className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="label">任务类型 *</label>
+              <select
+                className="input"
+                value={taskForm.task_type || 'water_change'}
+                onChange={e => setTaskForm({ ...taskForm, task_type: e.target.value })}
+                required
+              >
+                {CareTaskTypes.map(t => (
+                  <option key={t.value} value={t.value}>{t.icon} {t.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label">周期 (天) *</label>
+              <input
+                type="number"
+                min="1"
+                className="input"
+                value={taskForm.cycle_days || 7}
+                onChange={e => setTaskForm({ ...taskForm, cycle_days: parseInt(e.target.value) || 7 })}
+                required
+              />
+            </div>
+          </div>
+          <div>
+            <label className="label">下次执行日期 *</label>
+            <input
+              type="date"
+              className="input"
+              value={taskForm.next_due_date || ''}
+              onChange={e => setTaskForm({ ...taskForm, next_due_date: e.target.value })}
+              required
+            />
+          </div>
+          <div>
+            <label className="label">备注</label>
+            <textarea
+              className="input"
+              rows={2}
+              value={taskForm.notes || ''}
+              onChange={e => setTaskForm({ ...taskForm, notes: e.target.value })}
+            />
+          </div>
+          <div className="flex justify-end gap-3 pt-4 border-t">
+            <button type="button" className="btn-secondary" onClick={() => setTaskModalOpen(false)}>取消</button>
+            <button type="submit" className="btn-primary">创建</button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal
+        isOpen={completeModalOpen}
+        onClose={() => { setCompleteModalOpen(false); setActiveTask(null); }}
+        title={activeTask ? `完成 - ${CareTaskTypes.find(t => t.value === activeTask.task_type)?.label || ''}` : '完成任务'}
+      >
+        <div className="space-y-4">
+          {activeTask && (
+            <div className="bg-emerald-50 rounded-lg p-3 text-sm">
+              <p className="font-medium text-emerald-800">
+                完成此任务将自动生成一条{CareTaskTypes.find(t => t.value === activeTask.task_type)?.label}记录
+              </p>
+            </div>
+          )}
+          {activeTask?.task_type === 'water_change' && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="label">换水量 (L)</label>
+                <input type="number" step="0.1" className="input" value={completeData.volume || ''}
+                  onChange={e => setCompleteData({ ...completeData, volume: parseFloat(e.target.value) || 0 })} />
+              </div>
+              <div>
+                <label className="label">水类型</label>
+                <input type="text" className="input" value={completeData.water_type || ''}
+                  onChange={e => setCompleteData({ ...completeData, water_type: e.target.value })} />
+              </div>
+            </div>
+          )}
+          {activeTask?.task_type === 'water_test' && (
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { key: 'temperature', label: '温度', step: '0.1' },
+                { key: 'ph', label: 'pH', step: '0.01' },
+                { key: 'ammonia', label: '氨氮', step: '0.01' },
+                { key: 'nitrite', label: '亚硝酸盐', step: '0.01' },
+                { key: 'nitrate', label: '硝酸盐', step: '0.1' },
+                { key: 'kh', label: 'KH', step: '0.5' },
+              ].map(p => (
+                <div key={p.key}>
+                  <label className="label">{p.label}</label>
+                  <input type="number" step={p.step} className="input"
+                    value={(completeData.param_data || {})[p.key] || ''}
+                    onChange={e => setCompleteData({ ...completeData, param_data: { ...(completeData.param_data || {}), [p.key]: parseFloat(e.target.value) || null } })} />
+                </div>
+              ))}
+            </div>
+          )}
+          {activeTask?.task_type === 'feeding' && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="label">饲料类型</label>
+                <input type="text" className="input" value={completeData.food_type || ''}
+                  onChange={e => setCompleteData({ ...completeData, food_type: e.target.value })} />
+              </div>
+              <div>
+                <label className="label">喂食量</label>
+                <input type="number" step="0.1" className="input" value={completeData.amount || ''}
+                  onChange={e => setCompleteData({ ...completeData, amount: parseFloat(e.target.value) || null })} />
+              </div>
+            </div>
+          )}
+          <div>
+            <label className="label">备注</label>
+            <textarea className="input" rows={2} value={completeData.notes || ''}
+              onChange={e => setCompleteData({ ...completeData, notes: e.target.value })} />
+          </div>
+          <div className="flex justify-end gap-3 pt-4 border-t">
+            <button type="button" className="btn-secondary" onClick={() => { setCompleteModalOpen(false); setActiveTask(null); }}>取消</button>
+            <button type="button" className="btn-success" onClick={async () => {
+              if (!activeTask) return;
+              try {
+                await careTaskApi.complete(activeTask.id, completeData);
+                setCompleteModalOpen(false);
+                setActiveTask(null);
+                loadData();
+              } catch (error) {
+                console.error('Failed to complete task:', error);
+                alert('操作失败');
+              }
+            }}>确认完成</button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

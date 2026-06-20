@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { aquariumApi, waterParamApi, waterChangeApi } from '../api';
-import type { Aquarium, WaterParameter, WaterChange } from '../types';
+import { aquariumApi, waterParamApi, waterChangeApi, statsApi } from '../api';
+import type { Aquarium, WaterParameter, WaterChange, WaterHealthScore } from '../types';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import Modal from '../components/Modal';
 
@@ -9,6 +9,7 @@ export default function WaterQuality() {
   const [selectedAquarium, setSelectedAquarium] = useState<number | null>(null);
   const [params, setParams] = useState<WaterParameter[]>([]);
   const [waterChanges, setWaterChanges] = useState<WaterChange[]>([]);
+  const [healthScore, setHealthScore] = useState<WaterHealthScore | null>(null);
   const [chartParam, setChartParam] = useState('temperature');
   const [paramModalOpen, setParamModalOpen] = useState(false);
   const [changeModalOpen, setChangeModalOpen] = useState(false);
@@ -42,12 +43,14 @@ export default function WaterQuality() {
     if (!selectedAquarium) return;
     setLoading(true);
     try {
-      const [p, wc] = await Promise.all([
+      const [p, wc, hs] = await Promise.all([
         waterParamApi.getAll(selectedAquarium, 30),
         waterChangeApi.getAll(selectedAquarium),
+        statsApi.getHealthScore(selectedAquarium).catch(() => null),
       ]);
       setParams(p);
       setWaterChanges(wc);
+      setHealthScore(hs);
     } catch (error) {
       console.error('Failed to load data:', error);
     } finally {
@@ -170,6 +173,69 @@ export default function WaterQuality() {
                   </li>
                 ))}
               </ul>
+            </div>
+          )}
+
+          {healthScore && (
+            <div className={`rounded-lg p-5 ${
+              healthScore.level === 'excellent' ? 'bg-emerald-50 border border-emerald-200' :
+              healthScore.level === 'stable' ? 'bg-sky-50 border border-sky-200' :
+              healthScore.level === 'needs_attention' ? 'bg-amber-50 border border-amber-200' :
+              'bg-red-50 border border-red-200'
+            }`}>
+              <div className="flex items-start justify-between">
+                <div>
+                  <h4 className="text-lg font-semibold">水质健康评分</h4>
+                  <div className="flex items-center gap-4 mt-2">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-5xl font-bold ${
+                        healthScore.level === 'excellent' ? 'text-emerald-600' :
+                        healthScore.level === 'stable' ? 'text-sky-600' :
+                        healthScore.level === 'needs_attention' ? 'text-amber-600' :
+                        'text-red-600'
+                      }`}>{healthScore.score}</span>
+                      <span className="text-lg text-gray-400">/100</span>
+                    </div>
+                    <span className={`badge text-base px-3 py-1 ${
+                      healthScore.level === 'excellent' ? 'badge-success' :
+                      healthScore.level === 'stable' ? 'bg-sky-100 text-sky-800' :
+                      healthScore.level === 'needs_attention' ? 'badge-warning' :
+                      'badge-danger'
+                    }`}>{healthScore.levelLabel}</span>
+                    {healthScore.isDataExpired && (
+                      <span className="badge-danger">数据过期</span>
+                    )}
+                  </div>
+                </div>
+                <div className="text-right text-sm">
+                  {healthScore.lastTestDate && (
+                    <p className="text-gray-500">最近检测: {healthScore.lastTestDate}</p>
+                  )}
+                  {healthScore.daysSinceLastTest !== undefined && (
+                    <p className={healthScore.isDataExpired ? 'text-red-600' : 'text-gray-400'}>
+                      {healthScore.daysSinceLastTest}天前
+                    </p>
+                  )}
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 pt-4 border-t border-current/10">
+                {healthScore.causes.length > 0 && (
+                  <div>
+                    <p className="text-sm font-semibold mb-2">🔍 风险原因分析</p>
+                    <ul className="text-sm space-y-1">
+                      {healthScore.causes.map((c, i) => <li key={i} className="flex items-start gap-1"><span>•</span><span>{c}</span></li>)}
+                    </ul>
+                  </div>
+                )}
+                {healthScore.suggestions.length > 0 && (
+                  <div>
+                    <p className="text-sm font-semibold mb-2">💡 操作建议</p>
+                    <ul className="text-sm space-y-1">
+                      {healthScore.suggestions.map((s, i) => <li key={i} className="flex items-start gap-1"><span>→</span><span>{s}</span></li>)}
+                    </ul>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

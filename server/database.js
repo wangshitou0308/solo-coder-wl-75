@@ -127,6 +127,47 @@ function initDatabase() {
       FOREIGN KEY (aquarium_id) REFERENCES aquariums(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS care_tasks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      aquarium_id INTEGER NOT NULL,
+      task_type TEXT NOT NULL,
+      cycle_days INTEGER NOT NULL,
+      next_due_date TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      completed_date TEXT,
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (aquarium_id) REFERENCES aquariums(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS inventory_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      aquarium_id INTEGER,
+      name TEXT NOT NULL,
+      category TEXT NOT NULL,
+      current_quantity REAL NOT NULL DEFAULT 0,
+      unit TEXT NOT NULL,
+      low_stock_threshold REAL,
+      estimated_daily_usage REAL,
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (aquarium_id) REFERENCES aquariums(id) ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS inventory_purchases (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      inventory_item_id INTEGER NOT NULL,
+      purchase_date TEXT NOT NULL,
+      quantity REAL NOT NULL,
+      unit_price REAL,
+      supplier TEXT,
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (inventory_item_id) REFERENCES inventory_items(id) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS parameter_ranges (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       aquarium_type TEXT NOT NULL,
